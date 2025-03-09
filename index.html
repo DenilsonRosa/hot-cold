@@ -984,11 +984,23 @@
             }
 
             updateUI(weather, airQuality, uvIndex) {
-                document.getElementById('aqi').innerHTML = `
-                    <i class="fas fa-wind"></i>
-                    <div class="aqi-info">
-                        <div class="label">Qualidade do Ar</div>
-                        <div class="value">Carregando...</div>
+                // Obter o horário atual
+                const currentTime = new Date();
+
+                // Converter os horários de sunrise e sunset para objetos Date
+                const todaySunrise = new Date(weather.daily.sunrise[0]);
+                const todaySunset = new Date(weather.daily.sunset[0]);
+
+                // Verificar se é dia ou noite
+                const isDay = currentTime >= todaySunrise && currentTime < todaySunset;
+
+                // Atualizar o ícone e o valor do UV
+                const uvCategory = this.getUVCategory(uvIndex.uv);
+                document.getElementById('uv').innerHTML = `
+                    <i class="fas ${this.getUVIcon(uvIndex.uv, isDay)}"></i>
+                    <div class="uv-info">
+                        <div class="label">Índice UV</div>
+                        <div class="value" style="color: ${uvCategory.color};">${uvIndex.uv.toFixed(1)} (${isDay ? uvCategory.name : 'Baixo'})</div>
                     </div>
                 `;
 
@@ -997,15 +1009,6 @@
                 const windSpeed = current.windspeed;
                 const temp = current.temperature;
                 const currentAQI = airQuality.hourly.european_aqi[0];
-                const uvCategory = this.getUVCategory(uvIndex.uv);
-
-                document.getElementById('uv').innerHTML = `
-                    <i class="fas ${this.getUVIcon(uvIndex.uv)}"></i>
-                    <div class="uv-info">
-                        <div class="label">Índice UV</div>
-                        <div class="value" style="color: ${uvCategory.color};">${uvIndex.uv.toFixed(1)} (${uvIndex.isDay ? uvCategory.name : 'Baixo'})</div>
-                    </div>
-                `;
 
                 const calculatedFeelsLike = this.calculateFeelsLike(temp, humidity, windSpeed);
                 const apiFeelsLike = weather.hourly.apparent_temperature[0];
@@ -1037,11 +1040,6 @@
                         <div class="value">${finalFeelsLike}°C</div>
                     </div>
                 `;
-
-                const currentTime = new Date();
-                const todaySunrise = new Date(weather.daily.sunrise[0]);
-                const todaySunset = new Date(weather.daily.sunset[0]);
-                const isDay = currentTime >= todaySunrise && currentTime < todaySunset;
 
                 document.getElementById('condition').textContent = this.getWeatherCondition(current.weathercode);
                 document.getElementById('weatherIcon').className = `wi weather-icon ${this.getWeatherIcon(current.weathercode, isDay)}`;
@@ -1114,12 +1112,16 @@
                 return { name: 'Extremo', color: '#9C27B0' };
             }
 
-            getUVIcon(uvIndex) {
-                if (uvIndex <= 2) return 'fa-sun';
-                if (uvIndex <= 5) return 'fa-cloud-sun';
-                if (uvIndex <= 7) return 'fa-sun';
-                if (uvIndex <= 10) return 'fa-triangle-exclamation';
-                return 'fa-radiation';
+            getUVIcon(uvIndex, isDay) {
+                if (!isDay) {
+                    return 'fa-moon'; // Ícone para período noturno
+                }
+
+                if (uvIndex <= 2) return 'fa-sun'; // Ícone para UV Baixo
+                if (uvIndex <= 5) return 'fa-cloud-sun'; // Ícone para UV Moderado
+                if (uvIndex <= 7) return 'fa-sun'; // Ícone para UV Alto
+                if (uvIndex <= 10) return 'fa-triangle-exclamation'; // Ícone para UV Muito Alto
+                return 'fa-radiation'; // Ícone para UV Extremo
             }
 
             getWeatherCondition(code) {
