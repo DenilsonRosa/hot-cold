@@ -757,6 +757,7 @@
                 this.AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
                 this.GEO_URL = 'https://nominatim.openstreetmap.org/reverse';
                 this.IP_API_URL = 'https://ipinfo.io/json?token=0cf760b1a45a05';
+                this.OPENWEATHER_API_KEY = '6dc1cda2acd1dd343b08e94c35b53e44';
                 this.refreshInterval = 600000;
                 this.cache = new Map();
                 this.uvService = new UVService();
@@ -794,9 +795,6 @@
                             console.warn('Geolocalização negada. Buscando por IP...', error);
                             try {
                                 await this.getLocationByIP();
-                                const warningElement = document.getElementById('locationWarning');
-                                warningElement.textContent = 'Localização obtida pelo IP. A temperatura pode não refletir o local exato.';
-                                warningElement.classList.add('show');
                                 resolve();
                             } catch (ipError) {
                                 console.error('Erro ao buscar localização por IP:', ipError);
@@ -887,8 +885,11 @@
                     console.log('Buscando dados do Índice UV...');
                     const uvIndex = await this.uvService.getUVIndex(lat, lon);
 
-                    console.log('Dados obtidos:', { weather, airQuality, uvIndex });
-                    this.updateUI(weather, airQuality, uvIndex);
+                    console.log('Buscando dados de umidade da OpenWeatherMap...');
+                    const openWeatherData = await this.fetchData(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${this.OPENWEATHER_API_KEY}&units=metric`);
+
+                    console.log('Dados obtidos:', { weather, airQuality, uvIndex, openWeatherData });
+                    this.updateUI(weather, airQuality, uvIndex, openWeatherData);
                     this.generateAlerts(weather);
                 } catch (error) {
                     console.error('Erro ao obter dados:', error);
@@ -983,7 +984,7 @@
                 return iconMap[code] || 'wi-na';
             }
 
-            updateUI(weather, airQuality, uvIndex) {
+            updateUI(weather, airQuality, uvIndex, openWeatherData) {
                 // Obter o horário atual
                 const currentTime = new Date();
 
@@ -1005,7 +1006,7 @@
                 `;
 
                 const current = weather.current_weather;
-                const humidity = weather.hourly.relativehumidity_2m[0]; // Obter a umidade atual
+                const humidity = openWeatherData.main.humidity; // Usando a umidade da OpenWeatherMap
                 const windSpeed = current.windspeed;
                 const temp = current.temperature;
                 const currentAQI = airQuality.hourly.european_aqi[0];
@@ -1025,7 +1026,6 @@
 
                 document.getElementById('temperature').textContent = `${current.temperature}°C`;
 
-                // Atualizar a umidade
                 document.getElementById('humidity').innerHTML = `
                     <i class="fas fa-droplet"></i>
                     <div class="humidity-info">
