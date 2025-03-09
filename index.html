@@ -914,20 +914,24 @@
                 return data;
             }
 
-            calculateFeelsLike(temp, humidity, windSpeed) {
-                if (!humidity || !windSpeed || temp === undefined) {
+            calculateFeelsLike(temp, humidity, windSpeed, apparentTemp, weatherCode) {
+                if (!humidity || !windSpeed || temp === undefined || apparentTemp === undefined) {
                     console.warn('Dados insuficientes para cálculo preciso');
                     return temp;
                 }
 
-                let feelsLike = temp;
+                let feelsLike = apparentTemp; // Usar a sensação térmica da API Open-Meteo como base
+
                 const windKmh = windSpeed * 3.6;
 
+                // Ajustar para temperaturas frias (Wind Chill Index)
                 if (temp < 15 && windKmh >= 10) {
-                    feelsLike = 13.12 + 0.6215 * temp - 11.37 * Math.pow(windKmh, 0.16) +
-                                0.3965 * temp * Math.pow(windKmh, 0.16);
+                    const windChill = 13.12 + 0.6215 * temp - 11.37 * Math.pow(windKmh, 0.16) +
+                                      0.3965 * temp * Math.pow(windKmh, 0.16);
+                    feelsLike = Math.min(feelsLike, windChill); // Usar o menor valor entre a sensação térmica e o Wind Chill
                 }
 
+                // Ajustar para temperaturas quentes (Heat Index)
                 if (temp >= 20) {
                     const c1 = -8.78469475556;
                     const c2 = 1.61139411;
@@ -939,49 +943,21 @@
                     const c8 = 0.00072546;
                     const c9 = -0.000003582;
 
-                    feelsLike = c1 + c2 * temp + c3 * humidity + c4 * temp * humidity +
-                                c5 * Math.pow(temp, 2) + c6 * Math.pow(humidity, 2) +
-                                c7 * Math.pow(temp, 2) * humidity + c8 * temp * Math.pow(humidity, 2) +
-                                c9 * Math.pow(temp, 2) * Math.pow(humidity, 2);
+                    const heatIndex = c1 + c2 * temp + c3 * humidity + c4 * temp * humidity +
+                                      c5 * Math.pow(temp, 2) + c6 * Math.pow(humidity, 2) +
+                                      c7 * Math.pow(temp, 2) * humidity + c8 * temp * Math.pow(humidity, 2) +
+                                      c9 * Math.pow(temp, 2) * Math.pow(humidity, 2);
+
+                    feelsLike = Math.max(feelsLike, heatIndex); // Usar o maior valor entre a sensação térmica e o Heat Index
                 }
 
-                if (feelsLike === temp && humidity > 75) {
-                    feelsLike += (humidity - 75) * 0.1;
+                // Ajustar para dias ensolarados (radiação solar)
+                const isSunny = [0, 1, 2].includes(weatherCode); // Códigos de tempo ensolarado
+                if (isSunny && temp >= 20) {
+                    feelsLike += 1; // Aumentar a sensação térmica em 1°C em dias ensolarados
                 }
 
-                return Math.max(feelsLike, temp - 5);
-            }
-
-            combineValues(temp, calculated, api, humidity) {
-                const diffAPI = Math.abs(api - temp);
-                const diffCalc = Math.abs(calculated - temp);
-                
-                if (diffCalc > diffAPI + 2) {
-                    return (calculated * 0.7 + api * 0.3).toFixed(1);
-                }
-
-                if (humidity > 80 && temp >= 20) {
-                    return Math.max(calculated, api).toFixed(1);
-                }
-
-                return (calculated * 0.6 + api * 0.4).toFixed(1);
-            }
-
-            getWeatherIcon(code, isDay) {
-                const iconMap = {
-                    0: isDay ? 'wi-day-sunny' : 'wi-night-clear',
-                    1: isDay ? 'wi-day-cloudy' : 'wi-night-alt-cloudy',
-                    2: isDay ? 'wi-day-cloudy-high' : 'wi-night-alt-cloudy-high',
-                    3: 'wi-cloudy',
-                    45: 'wi-fog',
-                    51: isDay ? 'wi-day-showers' : 'wi-night-showers',
-                    61: isDay ? 'wi-day-rain' : 'wi-night-rain',
-                    80: isDay ? 'wi-day-storm-showers' : 'wi-night-storm-showers',
-                    95: 'wi-thunderstorm',
-                    96: 'wi-storm-showers',
-                    99: 'wi-lightning'
-                };
-                return iconMap[code] || 'wi-na';
+                return Math.round(feelsLike * 10) / 10; // Arredondar para uma casa decimal
             }
 
             updateUI(weather, airQuality, uvIndex, openWeatherData) {
@@ -1010,11 +986,15 @@
                 const windSpeed = current.windspeed;
                 const temp = current.temperature;
                 const currentAQI = airQuality.hourly.european_aqi[0];
+                const weatherCode = current.weathercode;
 
-                const calculatedFeelsLike = this.calculateFeelsLike(temp, humidity, windSpeed);
-                const apiFeelsLike = weather.hourly.apparent_temperature[0];
-                let finalFeelsLike = this.combineValues(temp, calculatedFeelsLike, apiFeelsLike, humidity);
-                finalFeelsLike = Math.round(finalFeelsLike * 10) / 10;
+                const calculatedFeelsLike = this.calculateFeelsLike(
+                    temp,
+                    humidity,
+                    windSpeed,
+                    weather.hourly.apparent_temperature[0], // Sensação térmica da API Open-Meteo
+                    weatherCode // Código do tempo
+                );
 
                 document.getElementById('aqi').innerHTML = `
                     <i class="fas ${this.getAQIIcon(currentAQI)}"></i>
@@ -1038,7 +1018,7 @@
                     <i class="fas fa-temperature-half"></i>
                     <div class="feels-like-info">
                         <div class="label">Sensação</div>
-                        <div class="value">${finalFeelsLike}°C</div>
+                        <div class="value">${calculatedFeelsLike}°C</div>
                     </div>
                 `;
 
