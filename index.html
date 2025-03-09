@@ -1005,7 +1005,7 @@
                 `;
 
                 const current = weather.current_weather;
-                const humidity = weather.hourly.relativehumidity_2m[0];
+                const humidity = weather.hourly.relativehumidity_2m[0]; // Obter a umidade atual
                 const windSpeed = current.windspeed;
                 const temp = current.temperature;
                 const currentAQI = airQuality.hourly.european_aqi[0];
@@ -1025,6 +1025,7 @@
 
                 document.getElementById('temperature').textContent = `${current.temperature}°C`;
 
+                // Atualizar a umidade
                 document.getElementById('humidity').innerHTML = `
                     <i class="fas fa-droplet"></i>
                     <div class="humidity-info">
